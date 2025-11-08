@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowUpTrayIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
+import { ArrowUpTrayIcon, PaperAirplaneIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import ImageProcessing from '../components/image/ImageProcessing';
+import { saveToHistory } from '../utils/history';
+import { generatePDFReport, generateCSVReport, ReportData } from '../utils/reportGenerator';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -57,11 +59,33 @@ export default function ImageAnalysis() {
 
       // Handle response structure
       const data = response.data.data || response.data;
-      setResult({
+      const resultData = {
         score: data.score || response.data.score,
         feedback: data.feedback || response.data.feedback,
         annotated_image: data.visualized_image || data.annotated_image || response.data.annotated_image
-      });
+      };
+      setResult(resultData);
+
+      // Save to activity history with report data
+      let overallScore = 0;
+      if (typeof resultData.score === 'number') {
+        overallScore = resultData.score;
+      } else if (resultData.score && typeof resultData.score === 'object') {
+        overallScore = resultData.score.overall || 0;
+      }
+      
+      const historyItem = {
+        type: 'image' as const,
+        score: overallScore,
+        thumbnail: resultData.annotated_image || preview,
+        data: {
+          ...resultData,
+          reportGenerated: true,
+          reportTimestamp: Date.now()
+        }
+      };
+      
+      saveToHistory(historyItem);
     } catch (err: any) {
       console.error('Analysis error:', err);
       setError(err.response?.data?.detail || 'Failed to analyze image. Please try again.');
@@ -187,9 +211,44 @@ export default function ImageAnalysis() {
           <div className="glass rounded-2xl p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-3xl font-bold">Image Analysis Results</h2>
-              <button onClick={handleReset} className="btn-secondary">
-                Analyze Another
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    const reportData: ReportData = {
+                      type: 'image',
+                      timestamp: Date.now(),
+                      score: result.score,
+                      feedback: result.feedback,
+                      data: result,
+                      thumbnail: result.annotated_image || preview
+                    };
+                    generatePDFReport(reportData);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  <ArrowDownTrayIcon className="w-5 h-5" />
+                  Download PDF
+                </button>
+                <button
+                  onClick={() => {
+                    const reportData: ReportData = {
+                      type: 'image',
+                      timestamp: Date.now(),
+                      score: result.score,
+                      feedback: result.feedback,
+                      data: result
+                    };
+                    generateCSVReport(reportData);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-500 rounded-lg hover:bg-green-600 transition-colors"
+                >
+                  <ArrowDownTrayIcon className="w-5 h-5" />
+                  Download CSV
+                </button>
+                <button onClick={handleReset} className="btn-secondary">
+                  Analyze Another
+                </button>
+              </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6 mb-6">

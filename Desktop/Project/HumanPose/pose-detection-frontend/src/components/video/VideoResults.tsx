@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { ArrowPathIcon, ChartBarIcon, ClockIcon, FilmIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, ChartBarIcon, ClockIcon, FilmIcon, PaperAirplaneIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import VideoPlayerWithAR from './VideoPlayerWithAR';
 import ScoreTimeline from './ScoreTimeline';
+import { generatePDFReport, generateCSVReport, ReportData } from '../../utils/reportGenerator';
 
 interface Props {
   result: any;
@@ -132,10 +133,51 @@ export default function VideoResults({ result, onReset, videoFile }: Props) {
       <div className="glass rounded-2xl p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-3xl font-bold">Video Analysis Results</h2>
-          <button onClick={onReset} className="btn-secondary">
-            <ArrowPathIcon className="w-5 h-5 mr-2 inline" />
-            Analyze Another
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                const reportData: ReportData = {
+                  type: 'video',
+                  timestamp: Date.now(),
+                  score: score,
+                  feedback: feedback,
+                  data: result,
+                  thumbnail: videoFile ? URL.createObjectURL(videoFile) : undefined
+                };
+                generatePDFReport(reportData, {
+                  total_frames: total_frames,
+                  duration: duration
+                });
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              <ArrowDownTrayIcon className="w-5 h-5" />
+              Download PDF
+            </button>
+            <button
+              onClick={() => {
+                const reportData: ReportData = {
+                  type: 'video',
+                  timestamp: Date.now(),
+                  score: score,
+                  feedback: feedback,
+                  data: result
+                };
+                generateCSVReport(reportData, {
+                  total_frames: total_frames,
+                  duration: duration
+                });
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-green-500 rounded-lg hover:bg-green-600 transition-colors"
+            >
+              <ArrowDownTrayIcon className="w-5 h-5" />
+              Download CSV
+            </button>
+            <button onClick={onReset} className="btn-secondary">
+              <ArrowPathIcon className="w-5 h-5 mr-2 inline" />
+              Analyze Another
+            </button>
+          </div>
         </div>
 
         {/* Stats Grid */}

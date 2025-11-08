@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { HomeIcon, VideoCameraIcon, PhotoIcon, ClockIcon, Cog6ToothIcon, CameraIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { HomeIcon, VideoCameraIcon, PhotoIcon, ChartBarIcon, CameraIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 export default function Navbar() {
   const location = useLocation();
@@ -10,8 +10,7 @@ export default function Navbar() {
     { path: '/video', label: 'Video', icon: VideoCameraIcon },
     { path: '/image', label: 'Image', icon: PhotoIcon },
     { path: '/chatbot', label: 'Chatbot', icon: ChatBubbleLeftRightIcon },
-    { path: '/history', label: 'History', icon: ClockIcon },
-    { path: '/settings', label: 'Settings', icon: Cog6ToothIcon },
+    { path: '/activity', label: 'Activity', icon: ChartBarIcon },
   ];
 
   return (
