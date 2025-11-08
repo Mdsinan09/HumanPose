@@ -129,7 +129,11 @@ class PoseService:
         score = scorer.calculate_score(landmarks_list, angles)
         feedback = scorer.generate_feedback(landmarks_list, angles, score)
         
+        # Get landmarks dict for frontend AR overlay
+        landmarks_dict = self.detector.get_landmarks_dict(results.pose_landmarks)
+        
         return {
+            "landmarks": landmarks_dict,
             "score": score,
             "feedback": feedback
         }

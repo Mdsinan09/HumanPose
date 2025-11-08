@@ -41,7 +41,8 @@ export default function Chatbot() {
     setIsLoading(true);
 
     try {
-      const { data } = await axios.post('http://localhost:8000/api/chatbot', {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const { data } = await axios.post(`${API_BASE_URL}/api/chatbot`, {
         message: userInput,
         context: {}
       }); 

@@ -1,7 +1,14 @@
-import { useState } from 'react';
-import { ArrowUpTrayIcon } from '@heroicons/react/24/outline';
+import { useState, useRef, useEffect } from 'react';
+import { ArrowUpTrayIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import ImageProcessing from '../components/image/ImageProcessing';
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+  isPlaceholder?: boolean;
+}
 
 export default function ImageAnalysis() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -9,6 +16,10 @@ export default function ImageAnalysis() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string>('');
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isLoadingChat, setIsLoadingChat] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -64,6 +75,105 @@ export default function ImageAnalysis() {
     setPreview('');
     setResult(null);
     setError('');
+    setChatHistory([]);
+  };
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory]);
+
+  useEffect(() => {
+    if (result) {
+      // Generate initial explanation when results are available
+      const overallScore = result.score?.overall || 0;
+      let explanation = `📊 **Image Analysis Summary**\n\n`;
+      
+      if (overallScore >= 80) {
+        explanation += `Excellent! Your score of ${overallScore}/100 shows great form. 🎉\n\n`;
+      } else if (overallScore >= 60) {
+        explanation += `Good effort! Your score is ${overallScore}/100. 👍\n\n`;
+      } else {
+        explanation += `Your score is ${overallScore}/100. Let's improve! 💪\n\n`;
+      }
+
+      explanation += `**Key Areas:**\n`;
+      if (result.score?.breakdown && Object.keys(result.score.breakdown).length > 0) {
+        Object.entries(result.score.breakdown).forEach(([key, value]: [string, any]) => {
+          const roundedValue = Math.round(value);
+          const emoji = roundedValue >= 80 ? '✅' : roundedValue >= 60 ? '⚠️' : '❌';
+          explanation += `${emoji} ${key.replace(/_/g, ' ')}: ${roundedValue}/100\n`;
+        });
+      } else {
+        explanation += `Overall performance: ${overallScore}/100\n`;
+      }
+
+      explanation += `\n💬 Ask me anything about your form!`;
+
+      setChatHistory([{
+        role: 'assistant',
+        content: explanation,
+        timestamp: Date.now()
+      }]);
+    }
+  }, [result]);
+
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || isLoadingChat) return;
+    
+    const userMessage = chatInput.trim();
+    setChatInput('');
+    
+    setChatHistory(prev => [...prev, { 
+      role: 'user', 
+      content: userMessage, 
+      timestamp: Date.now() 
+    }]);
+    
+    setChatHistory(prev => [...prev, { 
+      role: 'assistant', 
+      content: 'thinking...', 
+      isPlaceholder: true, 
+      timestamp: Date.now() + 1 
+    }]);
+
+    setIsLoadingChat(true);
+
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const { data } = await axios.post(`${API_BASE_URL}/api/chatbot`, {
+        message: userMessage,
+        context: {
+          type: 'image',
+          score: result?.score,
+          feedback: result?.feedback
+        }
+      });
+      
+      const botResponse = data.response || 'No response from assistant.';
+      
+      setChatHistory(prev => {
+        const newMessages = prev.filter(m => !m.isPlaceholder);
+        return [...newMessages, { 
+          role: 'assistant', 
+          content: botResponse, 
+          timestamp: Date.now() + 2 
+        }];
+      });
+      
+    } catch (err: any) {
+      console.error("Chat API Error:", err);
+      
+      setChatHistory(prev => {
+        const newMessages = prev.filter(m => !m.isPlaceholder);
+        return [...newMessages, { 
+          role: 'assistant', 
+          content: 'Sorry, I encountered an error. Please try again.', 
+          timestamp: Date.now() + 2 
+        }];
+      });
+    } finally {
+      setIsLoadingChat(false);
+    }
   };
 
   if (isAnalyzing) {
@@ -169,6 +279,57 @@ export default function ImageAnalysis() {
               </div>
             </div>
           )}
+
+          {/* AI Chatbot Section */}
+          <div className="glass rounded-2xl p-6">
+            <h3 className="text-xl font-bold mb-4">🤖 AI Coach Analysis</h3>
+            
+            <div className="bg-gray-800/50 rounded-xl p-4 mb-4 max-h-96 overflow-y-auto">
+              {chatHistory.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`mb-4 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] p-4 rounded-xl ${
+                      msg.role === 'user'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-700 text-gray-100'
+                    }`}
+                  >
+                    {msg.isPlaceholder ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                        <span>Thinking...</span>
+                      </div>
+                    ) : (
+                      <p className="text-sm whitespace-pre-line">{msg.content}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleChatSend()}
+                placeholder="Ask about your form..."
+                disabled={isLoadingChat}
+                className="flex-1 bg-gray-700 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={handleChatSend}
+                disabled={!chatInput.trim() || isLoadingChat}
+                className="px-4 py-2 bg-blue-500 rounded-xl hover:bg-blue-600 disabled:opacity-50"
+              >
+                <PaperAirplaneIcon className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );

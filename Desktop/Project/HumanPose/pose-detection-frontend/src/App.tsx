@@ -4,6 +4,7 @@ import Home from './pages/Home';
 import LiveCamera from './pages/LiveCamera';
 import VideoAnalysis from './pages/VideoAnalysis';
 import ImageAnalysis from './pages/ImageAnalysis';
+import Chatbot from './pages/Chatbot';
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
           <Route path="live" element={<LiveCamera />} />
           <Route path="video" element={<VideoAnalysis />} />
           <Route path="image" element={<ImageAnalysis />} />
+          <Route path="chatbot" element={<Chatbot />} />
         </Route>
       </Routes>
     </BrowserRouter>
