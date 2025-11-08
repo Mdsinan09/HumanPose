@@ -60,7 +60,8 @@ def process_video_analysis(video_path: str, session_id: str, exercise_type: str)
                     "frame": frame_number,
                     "timestamp": frame_number / fps,
                     "score": frame_score,
-                    "feedback": frame_feedback
+                    "feedback": frame_feedback,
+                    "landmarks": result.get('landmarks', {})  # Include landmarks for AR overlay
                 })
         except Exception as e:
             logger.error(f"Error on frame {frame_number}: {e}")
