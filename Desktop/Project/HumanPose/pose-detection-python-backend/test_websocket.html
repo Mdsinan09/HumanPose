@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pose Detection WebSocket Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { margin: 5px; padding: 10px 20px; font-size: 16px; cursor: pointer; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #output { 
+            margin-top: 20px; 
+            padding: 10px; 
+            background: #f0f0f0; 
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .info { color: blue; }
+        #status { font-weight: bold; }
+        .connected { color: green; }
+        .disconnected { color: red; }
+    </style>
+</head>
+<body>
+    <h1>🤖 Pose Detection WebSocket Test</h1>
+    
+    <div>
+        <button id="btnConnect" onclick="connect()">🔌 Connect</button>
+        <button id="btnStart" onclick="startSession()" disabled>▶️ Start Session</button>
+        <button id="btnPing" onclick="sendPing()" disabled>🏓 Ping</button>
+        <button id="btnStop" onclick="stopSession()" disabled>⏹️ Stop Session</button>
+        <button id="btnDisconnect" onclick="disconnect()" disabled>❌ Disconnect</button>
+    </div>
+    
+    <h3>Status: <span id="status" class="disconnected">Not Connected</span></h3>
+    <p><strong>WebSocket URL:</strong> ws://localhost:8000/ws</p>
+    <p><strong>Server Health:</strong> <a href="http://localhost:8000/health" target="_blank">Check Health</a></p>
+    
+    <div id="output"></div>
+
+    <script>
+        let ws;
+        let sessionId;
+
+        function updateButtons(connected, sessionStarted) {
+            document.getElementById('btnConnect').disabled = connected;
+            document.getElementById('btnStart').disabled = !connected || sessionStarted;
+            document.getElementById('btnPing').disabled = !connected;
+            document.getElementById('btnStop').disabled = !sessionStarted;
+            document.getElementById('btnDisconnect').disabled = !connected;
+        }
+
+        function connect() {
+            log('🔄 Attempting to connect to ws://localhost:8000/ws...', 'info');
+            
+            try {
+                ws = new WebSocket('ws://localhost:8000/ws');
+                
+                ws.onopen = () => {
+                    log('✅ Connected to server successfully!', 'success');
+                    document.getElementById('status').textContent = 'Connected';
+                    document.getElementById('status').className = 'connected';
+                    updateButtons(true, false);
+                };
+                
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        log('📨 Received: ' + JSON.stringify(data, null, 2), 'info');
+                        
+                        if (data.type === 'session_started') {
+                            sessionId = data.data.session_id;
+                            log('✅ Session Started! ID: ' + sessionId, 'success');
+                            updateButtons(true, true);
+                        }
+                        
+                        if (data.type === 'session_stopped') {
+                            log('⏹️ Session stopped', 'info');
+                            sessionId = null;
+                            updateButtons(true, false);
+                        }
+                        
+                        if (data.type === 'error') {
+                            log('❌ Server Error: ' + data.error.message + ' (Code: ' + data.error.code + ')', 'error');
+                        }
+                        
+                        if (data.type === 'pong') {
+                            log('🏓 Pong received!', 'success');
+                        }
+                    } catch (e) {
+                        log('❌ Failed to parse message: ' + e.message, 'error');
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    log('❌ WebSocket Error!', 'error');
+                    log('Error details: Check if server is running on http://localhost:8000', 'error');
+                    console.error('WebSocket error:', error);
+                };
+                
+                ws.onclose = (event) => {
+                    log('🔌 Disconnected from server (Code: ' + event.code + ')', 'info');
+                    if (event.reason) {
+                        log('Reason: ' + event.reason, 'info');
+                    }
+                    document.getElementById('status').textContent = 'Disconnected';
+                    document.getElementById('status').className = 'disconnected';
+                    updateButtons(false, false);
+                    sessionId = null;
+                };
+                
+            } catch (e) {
+                log('❌ Failed to create WebSocket: ' + e.message, 'error');
+            }
+        }
+
+        function startSession() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('❌ Not connected! Click Connect first.', 'error');
+                return;
+            }
+            
+            const message = {
+                type: 'start_session',
+                data: {
+                    exercise_type: 'squat',
+                    user_id: 'test_user_' + Date.now()
+                }
+            };
+            
+            ws.send(JSON.stringify(message));
+            log('▶️ Starting session... Sent: ' + JSON.stringify(message), 'info');
+        }
+
+        function sendPing() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('❌ Not connected!', 'error');
+                return;
+            }
+            
+            ws.send(JSON.stringify({ type: 'ping' }));
+            log('🏓 Ping sent', 'info');
+        }
+
+        function stopSession() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('❌ Not connected!', 'error');
+                return;
+            }
+            
+            ws.send(JSON.stringify({ type: 'stop_session' }));
+            log('⏹️ Stopping session...', 'info');
+        }
+
+        function disconnect() {
+            if (ws) {
+                log('🔌 Closing connection...', 'info');
+                ws.close(1000, 'User requested disconnect');
+                ws = null;
+                sessionId = null;
+            }
+        }
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const p = document.createElement('p');
+            p.className = type;
+            const timestamp = new Date().toLocaleTimeString();
+            p.innerHTML = '<strong>' + timestamp + '</strong> - ' + message;
+            output.insertBefore(p, output.firstChild);
+        }
+
+        // Initial button state
+        updateButtons(false, false);
+
+        // Test server connectivity on load
+        window.onload = function() {
+            fetch('http://localhost:8000/health')
+                .then(response => response.json())
+                .then(data => {
+                    log('✅ Server is reachable! Health check passed.', 'success');
+                    log('Server info: ' + JSON.stringify(data), 'info');
+                })
+                .catch(error => {
+                    log('❌ Cannot reach server at http://localhost:8000', 'error');
+                    log('Make sure server is running: python -m uvicorn src.main:app --reload', 'error');
+                });
+        };
+    </script>
+</body>
+</html>
