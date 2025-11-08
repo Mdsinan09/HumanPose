@@ -24,7 +24,7 @@ class Session(BaseModel):
     
     # FIX: Add fields the frontend is looking for
     score: Optional[float] = None
-    feedback: Optional[str] = None
+    feedback: Optional[List[Dict[str, Any]]] = None  # Changed to list of dicts for structured feedback
     results: List[Dict[str, Any]] = [] # For frame-by-frame data
 
     created_at: datetime = Field(default_factory=datetime.now)

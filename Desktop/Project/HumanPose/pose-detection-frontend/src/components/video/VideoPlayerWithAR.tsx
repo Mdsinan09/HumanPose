@@ -43,8 +43,10 @@ export default function VideoPlayerWithAR({ videoFile, frames, onFrameChange }: 
       const currentFrameIndex = Math.floor((video.currentTime / video.duration) * frames.length);
       const frameData = frames[currentFrameIndex];
 
-      if (frameData && frameData.landmarks) {
-        drawAROverlay(ctx, frameData, videoWidth, videoHeight);
+      if (frameData) {
+        // Extract score - handle both nested and flat structures
+        const frameScore = frameData.score?.overall || frameData.score || 0;
+        drawAROverlay(ctx, { ...frameData, score: frameScore }, videoWidth, videoHeight);
         onFrameChange(currentFrameIndex);
       }
 
@@ -67,48 +69,66 @@ export default function VideoPlayerWithAR({ videoFile, frames, onFrameChange }: 
   }, [frames, onFrameChange]);
 
   const drawAROverlay = (ctx: CanvasRenderingContext2D, frameData: any, width: number, height: number) => {
-    const landmarks = frameData.landmarks || [];
-    const score = frameData.score || 0;
-
-    const connections = [
-      [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
-      [11, 23], [12, 24], [23, 24],
-      [23, 25], [24, 26], [25, 27], [26, 28],
-    ];
-
-    ctx.strokeStyle = score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444';
-    ctx.lineWidth = 4;
-
-    connections.forEach(([start, end]) => {
-      const startLm = landmarks[start];
-      const endLm = landmarks[end];
-      if (startLm && endLm) {
-        ctx.beginPath();
-        ctx.moveTo(startLm.x * width, startLm.y * height);
-        ctx.lineTo(endLm.x * width, endLm.y * height);
-        ctx.stroke();
+    // Extract landmarks - they might be in different formats
+    let landmarks: any[] = [];
+    if (frameData.landmarks) {
+      // If landmarks is an object/dict, convert to array
+      if (Array.isArray(frameData.landmarks)) {
+        landmarks = frameData.landmarks;
+      } else if (typeof frameData.landmarks === 'object') {
+        // Convert object to array format
+        landmarks = Object.values(frameData.landmarks).filter((lm: any) => lm && typeof lm === 'object');
       }
-    });
+    }
+    
+    const score = frameData.score?.overall || frameData.score || 0;
 
-    landmarks.forEach((lm: any) => {
-      const x = lm.x * width;
-      const y = lm.y * height;
-      
-      ctx.fillStyle = '#10B981';
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    });
+    // Only draw AR overlay if we have landmarks
+    if (landmarks.length > 0) {
+      const connections = [
+        [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+        [11, 23], [12, 24], [23, 24],
+        [23, 25], [24, 26], [25, 27], [26, 28],
+      ];
 
+      ctx.strokeStyle = score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444';
+      ctx.lineWidth = 4;
+
+      connections.forEach(([start, end]) => {
+        const startLm = landmarks[start];
+        const endLm = landmarks[end];
+        if (startLm && endLm && startLm.x !== undefined && startLm.y !== undefined) {
+          ctx.beginPath();
+          ctx.moveTo(startLm.x * width, startLm.y * height);
+          ctx.lineTo(endLm.x * width, endLm.y * height);
+          ctx.stroke();
+        }
+      });
+
+      landmarks.forEach((lm: any) => {
+        if (lm && lm.x !== undefined && lm.y !== undefined) {
+          const x = lm.x * width;
+          const y = lm.y * height;
+          
+          ctx.fillStyle = '#10B981';
+          ctx.beginPath();
+          ctx.arc(x, y, 6, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      });
+    }
+
+    // Draw score overlay
+    const roundedScore = Math.round(score);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     ctx.fillRect(20, 20, 120, 60);
-    ctx.fillStyle = score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444';
+    ctx.fillStyle = roundedScore >= 80 ? '#10B981' : roundedScore >= 60 ? '#F59E0B' : '#EF4444';
     ctx.font = 'bold 32px sans-serif';
-    ctx.fillText(`${score}`, 45, 58);
+    ctx.fillText(`${roundedScore}`, 45, 58);
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '14px sans-serif';
     ctx.fillText('SCORE', 80, 58);

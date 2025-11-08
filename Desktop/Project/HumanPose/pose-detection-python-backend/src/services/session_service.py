@@ -108,7 +108,26 @@ class SessionService:
             session_file = self.sessions_dir / f"{session_id}.json"
             if session_file.exists():
                 with open(session_file, 'r') as f:
-                    return Session(**json.load(f))
+                    data = json.load(f)
+                    # Ensure status is properly converted if it's a string
+                    if 'status' in data and isinstance(data['status'], str):
+                        # Try to convert string to enum, but keep as string if invalid
+                        try:
+                            data['status'] = SessionStatus(data['status'])
+                        except ValueError:
+                            # If invalid status, use a default
+                            data['status'] = SessionStatus.INITIALIZING
+                    
+                    # Handle feedback field - convert old string format to list format
+                    if 'feedback' in data:
+                        if isinstance(data['feedback'], str):
+                            # Old format: convert string to list
+                            data['feedback'] = [{'type': 'info', 'message': data['feedback']}]
+                        elif not isinstance(data['feedback'], list):
+                            # If it's neither string nor list, set to None
+                            data['feedback'] = None
+                    
+                    return Session(**data)
         except Exception as e:
             logger.error(f"Failed to load session {session_id}: {e}")
         return None

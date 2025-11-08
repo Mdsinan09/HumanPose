@@ -84,21 +84,44 @@ def process_video_analysis(video_path: str, session_id: str, exercise_type: str)
         warning_count = sum(1 for f in all_feedback if isinstance(f, dict) and f.get('type') == 'warning')
         error_count = sum(1 for f in all_feedback if isinstance(f, dict) and f.get('type') == 'error')
         
-        if success_count > warning_count + error_count:
-            feedback_summary.append({
-                'type': 'success',
-                'message': f'Good form detected in {success_count} frames'
-            })
-        if warning_count > 0:
-            feedback_summary.append({
-                'type': 'warning',
-                'message': f'Minor issues detected in {warning_count} frames'
-            })
-        if error_count > 0:
-            feedback_summary.append({
-                'type': 'error',
-                'message': f'Form corrections needed in {error_count} frames'
-            })
+        total_feedback_items = success_count + warning_count + error_count
+        if total_feedback_items > 0:
+            success_percentage = (success_count / total_feedback_items) * 100
+            warning_percentage = (warning_count / total_feedback_items) * 100
+            error_percentage = (error_count / total_feedback_items) * 100
+            
+            if success_percentage >= 60:
+                feedback_summary.append({
+                    'type': 'success',
+                    'message': 'Great form overall! Most of your movements show good technique.'
+                })
+            elif success_percentage >= 40:
+                feedback_summary.append({
+                    'type': 'success',
+                    'message': 'Good effort! You maintained proper form for a significant portion of the exercise.'
+                })
+            
+            if warning_percentage >= 30:
+                feedback_summary.append({
+                    'type': 'warning',
+                    'message': 'Some minor form adjustments could improve your technique. Focus on maintaining consistency.'
+                })
+            elif warning_percentage >= 15:
+                feedback_summary.append({
+                    'type': 'warning',
+                    'message': 'A few areas need attention. Small adjustments will help improve your overall form.'
+                })
+            
+            if error_percentage >= 30:
+                feedback_summary.append({
+                    'type': 'error',
+                    'message': 'Several form corrections are needed. Review the specific feedback below and focus on these areas.'
+                })
+            elif error_percentage >= 15:
+                feedback_summary.append({
+                    'type': 'error',
+                    'message': 'Some form issues detected. Pay attention to the recommendations below.'
+                })
     
     # Calculate score breakdown from first frame if available
     score_breakdown = {}
@@ -133,31 +156,55 @@ async def get_session(session_id: str):
         total_frames = len(session.results) if session.results else 0
         duration = total_frames / fps if fps > 0 else 0
         
-        # Aggregate score
-        if session.score is not None:
-            score_data = {
-                "overall": session.score,
-                "breakdown": {}
-            }
-        else:
-            # Calculate from results
-            scores = [r.get('score', {}) for r in (session.results or [])]
-            if scores and isinstance(scores[0], dict) and 'breakdown' in scores[0]:
-                score_data = {
-                    "overall": session.score or 0,
-                    "breakdown": scores[0].get('breakdown', {})
-                }
-            else:
-                score_data = {"overall": session.score or 0, "breakdown": {}}
+        # Aggregate score and breakdown from results
+        score_data = {
+            "overall": round(session.score, 1) if session.score is not None else 0,
+            "breakdown": {}
+        }
+        
+        # Extract breakdown from frame results
+        if session.results:
+            # Get breakdown from first frame that has it
+            for result in session.results:
+                frame_score = result.get('score', {})
+                if isinstance(frame_score, dict) and 'breakdown' in frame_score:
+                    score_data["breakdown"] = frame_score.get('breakdown', {})
+                    break
+            
+            # If no breakdown found, calculate average breakdown from all frames
+            if not score_data["breakdown"]:
+                breakdown_scores = {}
+                breakdown_counts = {}
+                
+                for result in session.results:
+                    frame_score = result.get('score', {})
+                    if isinstance(frame_score, dict) and 'breakdown' in frame_score:
+                        for key, value in frame_score['breakdown'].items():
+                            if key not in breakdown_scores:
+                                breakdown_scores[key] = 0
+                                breakdown_counts[key] = 0
+                            breakdown_scores[key] += value
+                            breakdown_counts[key] += 1
+                
+                # Calculate averages
+                for key in breakdown_scores:
+                    if breakdown_counts[key] > 0:
+                        score_data["breakdown"][key] = round(
+                            breakdown_scores[key] / breakdown_counts[key], 
+                            1
+                        )
+        
+        # Handle status - could be enum or string (from JSON)
+        status_value = session.status.value if hasattr(session.status, 'value') else str(session.status)
         
         return {
             "session_id": str(session.id),
-            "status": session.status.value,
+            "status": status_value,
             "frames": session.results or [],
             "score": score_data,
             "feedback": session.feedback if isinstance(session.feedback, list) else [],
             "total_frames": total_frames,
-            "duration": duration,
+            "duration": round(duration, 2),  # Round duration to 2 decimal places
             "progress": session.progress
         }
     

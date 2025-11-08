@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowPathIcon, ChartBarIcon, ClockIcon, FilmIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
+import VideoPlayerWithAR from './VideoPlayerWithAR';
+import ScoreTimeline from './ScoreTimeline';
 
 interface Props {
   result: any;
@@ -21,12 +23,20 @@ export default function VideoResults({ result, onReset, videoFile }: Props) {
 
   const { frames = [], score, feedback, total_frames, duration } = result;
 
+  // Round score to whole number
+  const roundedScore = score?.overall ? Math.round(score.overall) : 0;
+  const displayScore = {
+    ...score,
+    overall: roundedScore,
+    breakdown: score?.breakdown || {}
+  };
+
   useEffect(() => {
     generateInitialExplanation();
-  }, []);
+  }, [roundedScore, score?.breakdown]);
 
   const generateInitialExplanation = () => {
-    const overallScore = score?.overall || 0;
+    const overallScore = roundedScore;
     
     let explanation = `📊 **Video Analysis Summary**\n\n`;
     
@@ -39,11 +49,14 @@ export default function VideoResults({ result, onReset, videoFile }: Props) {
     }
 
     explanation += `**Key Areas:**\n`;
-    if (score?.breakdown) {
+    if (score?.breakdown && Object.keys(score.breakdown).length > 0) {
       Object.entries(score.breakdown).forEach(([key, value]: [string, any]) => {
-        const emoji = value >= 80 ? '✅' : value >= 60 ? '⚠️' : '❌';
-        explanation += `${emoji} ${key}: ${value}/100\n`;
+        const roundedValue = Math.round(value);
+        const emoji = roundedValue >= 80 ? '✅' : roundedValue >= 60 ? '⚠️' : '❌';
+        explanation += `${emoji} ${key.replace(/_/g, ' ')}: ${roundedValue}/100\n`;
       });
+    } else {
+      explanation += `Overall performance: ${overallScore}/100\n`;
     }
 
     explanation += `\n💬 Ask me anything about your form!`;
@@ -135,22 +148,22 @@ export default function VideoResults({ result, onReset, videoFile }: Props) {
 
           <div className="glass-card p-4 text-center">
             <ClockIcon className="w-8 h-8 mx-auto mb-2 text-purple-400" />
-            <p className="text-2xl font-bold">{formatTime(duration)}</p>
+            <p className="text-2xl font-bold">{formatTime(duration || 0)}</p>
             <p className="text-sm text-gray-400">Duration</p>
           </div>
 
           <div className="glass-card p-4 text-center">
             <ChartBarIcon className="w-8 h-8 mx-auto mb-2 text-green-400" />
-            <p className="text-2xl font-bold">{score?.overall || 0}</p>
+            <p className="text-2xl font-bold">{roundedScore}</p>
             <p className="text-sm text-gray-400">Avg Score</p>
           </div>
 
           <div className="glass-card p-4 text-center">
             <div className="w-8 h-8 mx-auto mb-2 text-2xl">
-              {score?.overall >= 80 ? '🎉' : score?.overall >= 60 ? '👍' : '⚠️'}
+              {roundedScore >= 80 ? '🎉' : roundedScore >= 60 ? '👍' : '⚠️'}
             </div>
             <p className="text-2xl font-bold">
-              {score?.overall >= 80 ? 'Great' : score?.overall >= 60 ? 'Good' : 'Practice'}
+              {roundedScore >= 80 ? 'Great' : roundedScore >= 60 ? 'Good' : 'Practice'}
             </p>
             <p className="text-sm text-gray-400">Overall</p>
           </div>
@@ -210,8 +223,15 @@ export default function VideoResults({ result, onReset, videoFile }: Props) {
       {/* Video Player with AR Overlay */}
       {videoFile && frames.length > 0 && (
         <div className="glass rounded-2xl p-6">
-          <h3 className="text-xl font-bold mb-4">📹 Video with AR</h3>
-          {/* VideoPlayerWithAR component would go here */}
+          <h3 className="text-xl font-bold mb-4">📹 Video with AR Overlay</h3>
+          <VideoPlayerWithAR
+            videoFile={videoFile}
+            frames={frames}
+            onFrameChange={(frameIndex) => {
+              // Handle frame change if needed
+              console.log('Frame changed:', frameIndex);
+            }}
+          />
         </div>
       )}
 
@@ -219,54 +239,78 @@ export default function VideoResults({ result, onReset, videoFile }: Props) {
       {frames.length > 0 && (
         <div className="glass rounded-2xl p-6">
           <h3 className="text-xl font-bold mb-4">Score Timeline</h3>
-          {/* ScoreTimeline component would go here */}
+          <p className="text-sm text-gray-400 mb-4">
+            Track your score progression throughout the video
+          </p>
+          <ScoreTimeline
+            frames={frames}
+            onFrameSelect={(index) => {
+              // Handle frame selection if needed
+              console.log('Frame selected:', index);
+            }}
+          />
         </div>
       )}
 
       {/* Rest of the component stays the same... */}
       <div className="glass rounded-2xl p-6">
         <h3 className="text-xl font-bold mb-4">Score Breakdown</h3>
-        <div className="grid md:grid-cols-3 gap-4">
-          {Object.entries(score?.breakdown || {}).map(([key, value]: [string, any]) => (
-            <div key={key}>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="capitalize text-gray-300">{key}</span>
-                <span className="font-bold">{value}/100</span>
+        {Object.keys(displayScore.breakdown || {}).length > 0 ? (
+          <div className="grid md:grid-cols-3 gap-4">
+            {Object.entries(displayScore.breakdown).map(([key, value]: [string, any]) => (
+              <div key={key}>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="capitalize text-gray-300">{key.replace(/_/g, ' ')}</span>
+                  <span className="font-bold">{Math.round(value)}/100</span>
+                </div>
+                <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      value >= 80 ? 'bg-green-500' : value >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${
-                    value >= 80 ? 'bg-green-500' : value >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${value}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-400">
+            <p>Score breakdown not available for this analysis.</p>
+            <p className="text-sm mt-2">Overall score: {roundedScore}/100</p>
+          </div>
+        )}
       </div>
 
       {feedback && feedback.length > 0 && (
         <div className="glass rounded-2xl p-6">
-          <h3 className="text-xl font-bold mb-4">Feedback</h3>
+          <h3 className="text-xl font-bold mb-4">Feedback & Recommendations</h3>
           <div className="space-y-3">
-            {feedback.map((item: any, index: number) => (
-              <div
-                key={index}
-                className={`flex items-start gap-3 p-4 rounded-lg border ${
-                  item.type === 'success'
-                    ? 'bg-green-500/10 border-green-500/30'
-                    : item.type === 'warning'
-                    ? 'bg-yellow-500/10 border-yellow-500/30'
-                    : 'bg-red-500/10 border-red-500/30'
-                }`}
-              >
-                <span className="text-2xl">
-                  {item.type === 'success' ? '✅' : item.type === 'warning' ? '⚠️' : '❌'}
-                </span>
-                <p className="flex-1">{item.message}</p>
-              </div>
-            ))}
+            {feedback.map((item: any, index: number) => {
+              // Clean up feedback messages - remove frame counts if they're too technical
+              let message = item.message || '';
+              // Replace technical frame counts with more user-friendly text
+              message = message.replace(/in \d+ frames/g, 'throughout the video');
+              message = message.replace(/\d+ frames/g, 'multiple frames');
+              
+              return (
+                <div
+                  key={index}
+                  className={`flex items-start gap-3 p-4 rounded-lg border ${
+                    item.type === 'success'
+                      ? 'bg-green-500/10 border-green-500/30'
+                      : item.type === 'warning'
+                      ? 'bg-yellow-500/10 border-yellow-500/30'
+                      : 'bg-red-500/10 border-red-500/30'
+                  }`}
+                >
+                  <span className="text-2xl">
+                    {item.type === 'success' ? '✅' : item.type === 'warning' ? '⚠️' : '❌'}
+                  </span>
+                  <p className="flex-1 text-gray-200">{message}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

@@ -48,8 +48,10 @@ export default function ScoreTimeline({ frames, onFrameSelect }: Props) {
     ctx.beginPath();
 
     frames.forEach((frame, i) => {
+      // Extract score from frame - handle both nested and flat structures
+      const frameScore = frame.score?.overall || frame.score || 0;
       const x = padding + (graphWidth / (frames.length - 1)) * i;
-      const y = padding + graphHeight - (frame.score / 100) * graphHeight;
+      const y = padding + graphHeight - (frameScore / 100) * graphHeight;
 
       if (i === 0) {
         ctx.moveTo(x, y);
@@ -62,10 +64,12 @@ export default function ScoreTimeline({ frames, onFrameSelect }: Props) {
 
     // Points
     frames.forEach((frame, i) => {
+      // Extract score from frame - handle both nested and flat structures
+      const frameScore = frame.score?.overall || frame.score || 0;
       const x = padding + (graphWidth / (frames.length - 1)) * i;
-      const y = padding + graphHeight - (frame.score / 100) * graphHeight;
+      const y = padding + graphHeight - (frameScore / 100) * graphHeight;
 
-      ctx.fillStyle = frame.score >= 80 ? '#10B981' : frame.score >= 60 ? '#F59E0B' : '#EF4444';
+      ctx.fillStyle = frameScore >= 80 ? '#10B981' : frameScore >= 60 ? '#F59E0B' : '#EF4444';
       ctx.beginPath();
       ctx.arc(x, y, 4, 0, 2 * Math.PI);
       ctx.fill();
@@ -82,7 +86,8 @@ export default function ScoreTimeline({ frames, onFrameSelect }: Props) {
     const labelStep = Math.ceil(frames.length / 5);
     for (let i = 0; i < frames.length; i += labelStep) {
       const x = padding + (graphWidth / (frames.length - 1)) * i;
-      const time = frames[i].timestamp;
+      // Handle timestamp - might be in frame data or calculate from frame number
+      const time = frames[i].timestamp || (frames[i].frame / 30); // Default 30 fps
       const mins = Math.floor(time / 60);
       const secs = Math.floor(time % 60);
       ctx.fillText(`${mins}:${secs.toString().padStart(2, '0')}`, x, height - 10);
